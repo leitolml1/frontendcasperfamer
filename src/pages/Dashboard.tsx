@@ -126,6 +126,8 @@ import {
     CollapsibleContent,
     CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { WalletConnect } from "#components/WalletConnect";
+import { ProfileMenu } from "#components/ProfileOptions";
 
 
 
@@ -628,7 +630,31 @@ export const Dashboard = () => {
     const series = useMemo(() => buildSeries(range), [range]);
     const [walletConnected, setWalletConnected] = useState(false);
     const [walletAddress, setWalletAddress] = useState("");
+    const disconnectWallet = async () => {
+        try {
+            const providerFactory = (window as any).CasperWalletProvider;
 
+            if (providerFactory) {
+                const provider =
+                    typeof providerFactory === "function"
+                        ? providerFactory(window)
+                        : providerFactory;
+
+                if (provider.disconnect) {
+                    await provider.disconnect();
+                }
+
+                if (provider.requestDisconnect) {
+                    await provider.requestDisconnect();
+                }
+            }
+        } catch (err) {
+            console.error(err);
+        }
+
+        setWalletConnected(false);
+        setWalletAddress("");
+    };
     const connectWallet = async () => {
         try {
             const providerFactory = window.CasperWalletProvider;
@@ -725,19 +751,22 @@ export const Dashboard = () => {
                                     </button>
                                 ))}
                             </div>
-                            <button
-                                onClick={connectWallet}
-                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-2 ${walletConnected
-                                    ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/15"
-                                    : "bg-brand text-zinc-950 hover:opacity-90"
-                                    }`}
-                                title="Powered by CSPR.click"
-                            >
-                                <Wallet className="size-4" />
-                                {walletConnected
-                                    ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
-                                    : t.connectWallet}
-                            </button>
+                            <div className="flex items-center gap-4">
+                                {walletConnected ? (
+                                    <ProfileMenu
+                                        walletAddress={walletAddress}
+                                        onDisconnect={disconnectWallet}
+                                    />
+                                ) : (
+                                    <WalletConnect
+                                        connectWallet={t.connectWallet}
+                                        onConnected={(address) => {
+                                            setWalletAddress(address);
+                                            setWalletConnected(true);
+                                        }}
+                                    />
+                                )}
+                            </div>
                         </div>
                     </div>
                 </nav>
