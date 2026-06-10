@@ -4,7 +4,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "#components/ui/dropdown-menu";
 
 import {
   User,
@@ -13,6 +13,7 @@ import {
   LogOut,
   ChevronDown,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface ProfileMenuProps {
   walletAddress: string;
@@ -66,21 +67,20 @@ export const ProfileMenu = ({
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuItem>
-          <User className="mr-2 size-4" />
-          Profile
+        <DropdownMenuItem className="text-zinc-200">
+          <User className="mr-2 size-5" />
+          <Link to="/profile">Profile</Link>
         </DropdownMenuItem>
 
-        <DropdownMenuItem>
-          <Wallet className="mr-2 size-4" />
-          Portfolio
+        <DropdownMenuItem className="text-zinc-200">
+          <Wallet className="mr-2 size-5" />
+          <Link to="/portfolio">Portfolio</Link>
         </DropdownMenuItem>
 
-        <DropdownMenuItem>
-          <Settings className="mr-2 size-4" />
+        <DropdownMenuItem className="text-zinc-200">
+          <Settings className="mr-2 size-5" />
           Settings
         </DropdownMenuItem>
-
         <DropdownMenuSeparator />
 
         <DropdownMenuItem

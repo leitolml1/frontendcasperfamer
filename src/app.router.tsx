@@ -6,6 +6,8 @@ import { Dashboard } from "./pages/Dashboard"
 import { LandingPage } from "./pages/LandingPage"
 import { AuditPage } from "./pages/AuditLogs"
 import { StrategyPage } from "./pages/Agent"
+import { ProfilePage } from "./pages/ProfilePage"
+import { PortfolioPage } from "./pages/PortfolioPage"
 
 export const appRouter = createBrowserRouter([
 
@@ -26,6 +28,14 @@ export const appRouter = createBrowserRouter([
         {
         path: "/audit",
         element: <AuditPage />
+    },
+    {
+        path:"/profile",
+        element:<ProfilePage/>
+    },
+        {
+        path:"/portfolio",
+        element:<PortfolioPage/>
     }
 ]
 

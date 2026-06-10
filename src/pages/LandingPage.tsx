@@ -364,22 +364,7 @@ export const LandingPage = () => {
                                 ES
                             </button>
                         </div>
-                        <div className="flex items-center gap-4">
-                            {walletConnected ? (
-                                <ProfileMenu
-                                    walletAddress={walletAddress}
-                                    onDisconnect={disconnectWallet}
-                                />
-                            ) : (
-                                <WalletConnect
-                                    connectWallet={t.connectWallet}
-                                    onConnected={(address) => {
-                                        setWalletAddress(address);
-                                        setWalletConnected(true);
-                                    }}
-                                />
-                            )}
-                        </div>
+                        
                     </div>
                 </div>
             </nav>
