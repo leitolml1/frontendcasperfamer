@@ -9,9 +9,14 @@ import {
     Tooltip,
     XAxis,
     YAxis,
-} from "recharts";
-import { ChevronDown, ChevronRight, ExternalLink, Info, Wallet, X } from "lucide-react";
 
+} from "recharts";
+import {
+    Bot, ChevronDown, ChevronRight, ExternalLink, Info, Wallet, X, Vault,
+    ArrowRightLeft, ChevronLeft,
+    Send,
+} from "lucide-react";
+import { useCasperTransaction } from "#hooks/useCasperTransaction";
 const EXPLORER = "https://testnet.cspr.live/deploy/";
 
 // ---------- i18n ----------
@@ -120,12 +125,16 @@ import {
     SheetDescription,
     SheetHeader,
     SheetTitle,
-} from "@/components/ui/sheet";
+} from "#components/ui/sheet";
 import {
     Collapsible,
     CollapsibleContent,
     CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+} from "#components/ui/collapsible";
+import { WalletConnect } from "#components/WalletConnect";
+import { ProfileMenu } from "#components/ProfileOptions";
+import { Link } from "react-router-dom";
+import { useAgentStatus } from "#hooks/useAgentStatus";
 
 
 
@@ -623,52 +632,87 @@ function DecisionRow({ d }: { d: Decision }) {
 // ---------- main ----------
 
 export const Dashboard = () => {
+    const { sendNativeTransfer } = useCasperTransaction();
+    const [actionAmount, setActionAmount] = useState<string>("50"); // valor por defecto
+    const { status, loading } = useAgentStatus();
+
+    console.log(status);
     const [selectedPool, setSelectedPool] = useState<Pool | null>(null);
     const [range, setRange] = useState<Range>("24H");
     const series = useMemo(() => buildSeries(range), [range]);
     const [walletConnected, setWalletConnected] = useState(false);
     const [walletAddress, setWalletAddress] = useState("");
+    const [slide, setSlide] = useState(0);
 
-    const connectWallet = async () => {
+    const disconnectWallet = async () => {
         try {
-            const providerFactory = window.CasperWalletProvider;
+            const providerFactory = (window as any).CasperWalletProvider;
 
-            if (!providerFactory) {
-                alert("Wallet no encontrada");
-                return;
+            if (providerFactory) {
+                const provider =
+                    typeof providerFactory === "function"
+                        ? providerFactory(window)
+                        : providerFactory;
+
+                if (provider.disconnect) {
+                    await provider.disconnect();
+                }
+
+                if (provider.requestDisconnect) {
+                    await provider.requestDisconnect();
+                }
             }
-
-            const provider =
-                typeof providerFactory === "function"
-                    ? providerFactory(window)
-                    : providerFactory;
-
-            console.log("provider:", provider);
-
-            await provider.requestConnection();
-
-            const publicKey =
-                await provider.getActivePublicKey?.() ||
-                await provider.requestActivePublicKey?.();
-
-            if (!publicKey) {
-                alert("No pude obtener public key");
-                return;
-            }
-
-            setWalletAddress(String(publicKey));
-            setWalletConnected(true);
-
-            console.log("Connected:", publicKey);
-
         } catch (err) {
-            console.error("Wallet error:", err);
+            console.error(err);
         }
+
+        setWalletConnected(false);
+        setWalletAddress("");
     };
     const [nextCycle, setNextCycle] = useState(42);
     const [lang, setLang] = useState<Lang>("en");
     const t = dict[lang];
+    const executeAction = async (actionType: string) => {
+        if (!walletConnected || !walletAddress) {
+            alert("Conecta tu wallet primero");
+            return;
+        }
 
+        const amount = parseFloat(actionAmount);
+        if (!amount || amount <= 0) {
+            alert("Ingresa un monto válido mayor a 0");
+            return;
+        }
+
+        const amountMotes = Math.floor(amount * 1_000_000_000).toString();
+
+        try {
+            const providerFactory = (window as any).CasperWalletProvider;
+            const walletProvider = typeof providerFactory === "function"
+                ? providerFactory(window)
+                : providerFactory;
+
+            if (!walletProvider) {
+                throw new Error("Casper Wallet no detectada");
+            }
+
+            const deployHash = await sendNativeTransfer(
+                walletAddress,
+                walletAddress,        // ← Transfer a ti mismo (seguro para pruebas)
+                amountMotes,
+                walletProvider
+            );
+
+            alert(`✅ Transacción enviada exitosamente!\n\nHash:\n${deployHash}`);
+
+            // Abrir explorer
+            window.open(`${EXPLORER}${deployHash}`, "_blank");
+
+        } catch (error: any) {
+            console.error("Transaction error:", error);
+            alert("❌ Error al enviar transacción:\n" + (error.message || error));
+        }
+    };
     useEffect(() => {
         const id = setInterval(() => {
             setNextCycle((s) => (s <= 1 ? 60 : s - 1));
@@ -676,7 +720,6 @@ export const Dashboard = () => {
         return () => clearInterval(id);
     }, []);
 
-    const truncatedWallet = "0x4a92…8f2b";
 
     return (
         <LangContext.Provider value={{ lang, t }}>
@@ -688,6 +731,37 @@ export const Dashboard = () => {
                                 <div className="size-2 bg-zinc-950 rounded-full" />
                             </div>
                             <span className="font-medium text-zinc-100 tracking-tight">Casper Autopilot</span>
+                            <div className="hidden md:flex items-center gap-6 ml-6">
+                                <Link
+                                    to="/agent"
+                                    className="text-red-500 font-semibold"
+                                    style={{
+                                        textShadow: `
+                                        0 0 10px #ff2d2d,
+                                        0 0 10px #ff2d2d,
+                                        0 0 10px #ff2d2d,
+                                        0 0 40px #ff2d2d
+                                        `
+                                    }}
+                                >
+                                    Agent
+                                </Link>
+
+                                <Link
+                                    to="/audit"
+                                    className="text-red-500 font-semibold"
+                                    style={{
+                                        textShadow: `
+                                        0 0 10px #ff2d2d,
+                                        0 0 10px #ff2d2d,
+                                        0 0 10px #ff2d2d,
+                                        0 0 40px #ff2d2d
+                                        `
+                                    }}
+                                >
+                                    Audit Logs
+                                </Link>
+                            </div>
                             <div className="h-4 w-px bg-zinc-800 mx-2" />
                             <div className="flex items-center gap-2">
                                 <div className="size-2 rounded-full bg-emerald-500 animate-pulse-soft" />
@@ -725,19 +799,22 @@ export const Dashboard = () => {
                                     </button>
                                 ))}
                             </div>
-                            <button
-                                onClick={connectWallet}
-                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-2 ${walletConnected
-                                    ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/15"
-                                    : "bg-brand text-zinc-950 hover:opacity-90"
-                                    }`}
-                                title="Powered by CSPR.click"
-                            >
-                                <Wallet className="size-4" />
-                                {walletConnected
-                                    ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
-                                    : t.connectWallet}
-                            </button>
+                            <div className="flex items-center gap-4">
+                                {walletConnected ? (
+                                    <ProfileMenu
+                                        walletAddress={walletAddress}
+                                        onDisconnect={disconnectWallet}
+                                    />
+                                ) : (
+                                    <WalletConnect
+                                        connectWallet={t.connectWallet}
+                                        onConnected={(address) => {
+                                            setWalletAddress(address);
+                                            setWalletConnected(true);
+                                        }}
+                                    />
+                                )}
+                            </div>
                         </div>
                     </div>
                 </nav>
@@ -830,23 +907,275 @@ export const Dashboard = () => {
                             </div>
                         </div>
 
-                        <div className="p-6 rounded-xl bg-brand/5 border border-brand/20">
-                            <h2 className="text-xs font-medium uppercase tracking-widest text-brand mb-4">
-                                {t.agentStrategy}
-                            </h2>
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm text-zinc-300">{t.apyThreshold}</span>
-                                    <span className="text-sm font-mono text-brand">&gt;12.5%</span>
+                        <div className="flex flex-col gap-3">
+                            {/* Dots */}
+                            <div className="flex justify-center gap-2">
+                                {[0, 1].map((i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => setSlide(i)}
+                                        className={`size-1.5 rounded-full transition-all duration-200 ${slide === i ? "bg-brand scale-150" : "bg-zinc-700"
+                                            }`}
+                                    />
+                                ))}
+                            </div>
+
+                            {/* Track */}
+                            <div className="overflow-hidden rounded-xl">
+                                <div
+                                    className="flex transition-transform duration-300 ease-in-out"
+                                    style={{ transform: `translateX(-${slide * 100}%)` }}
+                                >
+                                    {/* SLIDE 0 — Agent Status */}
+                                    <div className="min-w-full p-6 rounded-xl bg-red-500/5 border border-red-500/40 shadow-[0_0_20px_rgba(255,45,45,0.25)]">
+
+                                        {/* Agent active pill */}
+                                        <div className="flex items-center gap-3 rounded-xl border border-green-500/30 bg-green-500/5 p-4 mb-5">
+                                            <Bot
+                                                className="size-10 text-green-400"
+                                                style={{ filter: "drop-shadow(0 0 6px #22c55e) drop-shadow(0 0 12px #22c55e)" }}
+                                            />
+                                            <div className="flex flex-col gap-0.5">
+                                                <span
+                                                    className="font-mono text-green-400 uppercase tracking-[0.2em] text-sm"
+                                                    style={{ textShadow: "0 0 5px #22c55e, 0 0 10px #22c55e, 0 0 20px #22c55e" }}
+                                                >
+                                                    {loading ? "LOADING..." : status?.status === "running" ? "AGENT IS ACTIVE" : "AGENT STOPPED"}
+                                                </span>
+                                                {status?.last_updated && (
+                                                    <span className="text-[9px] font-mono text-green-500/50 uppercase tracking-widest">
+                                                        Updated {new Date(status.last_updated).toLocaleTimeString()}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Title */}
+                                        <h2
+                                            className="text-xs font-medium uppercase tracking-widest text-red-400 mb-4"
+                                            style={{ textShadow: "0 0 5px #ff2d2d, 0 0 10px #ff2d2d" }}
+                                        >
+                                            {t.agentStrategy}
+                                        </h2>
+
+                                        {/* Stats grid */}
+                                        <div className="grid grid-cols-2 gap-2 mb-4">
+                                            {[
+                                                {
+                                                    label: "Balance",
+                                                    value: status?.balance_cspr != null ? `${status.balance_cspr.toLocaleString()} CSPR` : "—",
+                                                    color: "text-zinc-200",
+                                                },
+                                                {
+                                                    label: t.totalDeploys,
+                                                    value: status?.actions_taken != null ? String(status.actions_taken) : "—",
+                                                    color: "text-zinc-200",
+                                                },
+                                                {
+                                                    label: "Pool APY",
+                                                    value: status?.last_market_data?.pool_apy != null ? `${status.last_market_data.pool_apy.toFixed(2)}%` : "—",
+                                                    color: "text-emerald-400",
+                                                },
+                                                {
+                                                    label: t.nextCycle,
+                                                    value: `${String(Math.floor(nextCycle / 60)).padStart(2, "0")}:${String(nextCycle % 60).padStart(2, "0")}`,
+                                                    color: "text-red-400",
+                                                },
+                                            ].map(({ label, value, color }) => (
+                                                <div key={label} className="rounded-lg border border-red-500/15 bg-red-500/5 p-3">
+                                                    <div className="text-[9px] uppercase tracking-widest text-zinc-500 mb-1">{label}</div>
+                                                    <div className={`text-sm font-mono font-semibold ${color}`}>{value}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* APY threshold row */}
+                                        <div className="flex justify-between items-center mb-2">
+                                            <span className="text-sm text-zinc-300">{t.apyThreshold}</span>
+                                            <span
+                                                className="text-sm font-mono text-red-400"
+                                                style={{ textShadow: "0 0 5px #ff2d2d, 0 0 10px #ff2d2d" }}
+                                            >
+                                                &gt;12.5%
+                                            </span>
+                                        </div>
+
+                                        {/* Progress bar — current APY vs threshold */}
+                                        <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden mb-1">
+                                            <div
+                                                className="h-full bg-green-400 rounded-full transition-all duration-500"
+                                                style={{
+                                                    width: status?.last_market_data?.pool_apy
+                                                        ? `${Math.min((status.last_market_data.pool_apy / 25) * 100, 100).toFixed(0)}%`
+                                                        : "0%",
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="text-[10px] text-zinc-600 text-right font-mono mb-3">
+                                            Current APY {status?.last_market_data?.current_apy?.toFixed(2) ?? "—"}%
+                                        </div>
+
+                                        {/* Last decision box */}
+                                        {status?.last_decision && (
+                                            <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 mb-4">
+                                                <div className="text-[9px] uppercase tracking-widest text-zinc-500 mb-2">Last decision</div>
+                                                <div className="flex items-center justify-between mb-1.5">
+                                                    <span className="text-xs font-mono font-semibold text-zinc-100">
+                                                        {status.last_decision.action}
+                                                    </span>
+                                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${status.last_decision.action === "HOLD"
+                                                        ? "bg-zinc-800 text-zinc-400"
+                                                        : status.last_decision.action === "SWAP"
+                                                            ? "bg-brand/10 text-brand"
+                                                            : "bg-emerald-500/10 text-emerald-500"
+                                                        }`}>
+                                                        {status.last_decision.action}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[10px] text-zinc-500 leading-relaxed">
+                                                    {status.last_decision.reasoning}
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {/* Errors */}
+                                        {status?.errors?.length > 0 && (
+                                            <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 mb-4">
+                                                <div className="text-[9px] uppercase tracking-widest text-red-400 mb-1">Errors</div>
+                                                {status.errors.map((e: string, i: number) => (
+                                                    <p key={i} className="text-[10px] text-red-300 font-mono">{e}</p>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Button */}
+                                        <button
+                                            className="w-full py-2 px-3 rounded-lg text-sm font-semibold text-white border border-red-500/60 bg-red-500/10 hover:bg-red-500/20 transition-all shadow-[0_0_15px_rgba(255,45,45,0.35)]"
+                                            style={{ textShadow: "0 0 5px #ff2d2d, 0 0 10px #ff2d2d" }}
+                                        >
+                                            {t.updateStrategy}
+                                        </button>
+                                    </div>
+
+                                    {/* SLIDE 1 — Vault Actions */}
+                                    <div className="min-w-full p-6 rounded-xl bg-indigo-500/5 border border-indigo-500/30">
+                                        {/* Balance */}
+                                        <div className="flex items-center gap-3 mb-5">
+                                            <div className="size-10 rounded-lg bg-indigo-500/10 border border-indigo-500/25 grid place-items-center">
+                                                <Vault className="size-5 text-indigo-400" />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-semibold text-indigo-400 uppercase tracking-wider text-sm">
+                                                    Vault actions
+                                                </h3>
+                                                <p className="text-[10px] text-zinc-500 uppercase tracking-wider">
+                                                    Execute manual operations
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Balance box */}
+                                        <div className="rounded-lg border border-indigo-500/15 bg-indigo-500/5 p-3 mb-4">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div>
+                                                    <div className="text-[9px] uppercase tracking-widest text-zinc-500 mb-1">
+                                                        Total vault balance
+                                                    </div>
+                                                    <div className="text-xl font-mono text-zinc-100">
+                                                        1,240,482{" "}
+                                                        <span className="text-sm text-indigo-400">CSPR</span>
+                                                    </div>
+                                                    <div className="text-[10px] text-zinc-500 mt-0.5">
+                                                        ≈ $42,176.38 USD
+                                                    </div>
+                                                </div>
+                                                <span className="text-[9px] px-2 py-1 rounded-md border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 uppercase tracking-widest">
+                                                    Testnet
+                                                </span>
+                                            </div>
+                                            <div className="flex gap-4 pt-2 border-t border-indigo-500/10 text-[10px] font-mono text-zinc-500">
+                                                <span>CSPR <span className="text-zinc-300">982,140</span></span>
+                                                <span>sCSPR <span className="text-zinc-300">258,342</span></span>
+                                            </div>
+                                        </div>
+
+                                        {/* Stats */}
+                                        <div className="grid grid-cols-3 gap-1.5 mb-4">
+                                            {[
+                                                { l: "Staked", v: "184,200", c: "text-emerald-400" },
+                                                { l: "Rewards 24h", v: "+42.18", c: "text-emerald-400" },
+                                                { l: "Gas price", v: "1.2 gwei", c: "text-zinc-200" },
+                                            ].map(({ l, v, c }) => (
+                                                <div key={l} className="rounded-md border border-zinc-800 bg-zinc-900/40 p-2 text-center">
+                                                    <div className="text-[9px] uppercase tracking-widest text-zinc-500 mb-1">{l}</div>
+                                                    <div className={`text-xs font-mono ${c}`}>{v}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            {/* Amount Input */}
+                                            <div>
+                                                <div className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Amount (CSPR)</div>
+                                                <input
+                                                    type="number"
+                                                    value={actionAmount}
+                                                    onChange={(e) => setActionAmount(e.target.value)}
+                                                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-zinc-100 focus:border-indigo-500 outline-none text-lg font-mono"
+                                                    placeholder="50.0"
+                                                />
+                                            </div>
+
+                                            {/* Action Buttons */}
+                                            <div className="grid grid-cols-2 gap-3">
+                                                {[
+                                                    { label: "Deposit", action: "deposit", color: "indigo" },
+                                                    { label: "Withdraw", action: "withdraw", color: "zinc" },
+                                                    { label: "Stake", action: "stake", color: "emerald" },
+                                                    { label: "Swap", action: "swap", color: "brand" },
+                                                ].map(({ label, action, color }) => (
+                                                    <button
+                                                        key={action}
+                                                        onClick={() => executeAction(action)}
+                                                        className={`py-3 px-4 rounded-xl border text-sm font-semibold transition-all hover:scale-[1.02] ${color === "indigo"
+                                                            ? "border-indigo-500 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20"
+                                                            : color === "emerald"
+                                                                ? "border-emerald-500 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                                                                : color === "brand"
+                                                                    ? "border-brand bg-brand/10 text-brand hover:bg-brand/20"
+                                                                    : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:bg-zinc-800"
+                                                            }`}
+                                                    >
+                                                        {label}
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            <button
+                                                onClick={() => executeAction("execute")}
+                                                className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl border border-indigo-500/50 bg-indigo-500/10 text-indigo-400 font-semibold text-base hover:bg-indigo-500/20 transition-all"
+                                            >
+                                                <Send size={18} />
+                                                Execute Transaction
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
-                                    <div className="w-3/4 h-full bg-brand" />
-                                </div>
-                                <p className="text-xs text-zinc-400 leading-relaxed text-pretty pt-2">
-                                    {t.strategyDesc}
-                                </p>
-                                <button className="w-full mt-2 py-2 px-3 bg-brand text-zinc-950 text-sm font-semibold rounded-lg hover:opacity-90 transition-opacity">
-                                    {t.updateStrategy}
+                            </div>
+
+                            {/* Nav buttons */}
+                            <div className="flex justify-center gap-2">
+                                <button
+                                    onClick={() => setSlide(0)}
+                                    className="size-8 rounded-md border border-zinc-800 bg-zinc-900 text-zinc-500 hover:border-brand hover:text-brand transition-colors grid place-items-center"
+                                >
+                                    <ChevronLeft className="size-4" />
+                                </button>
+                                <button
+                                    onClick={() => setSlide(1)}
+                                    className="size-8 rounded-md border border-zinc-800 bg-zinc-900 text-zinc-500 hover:border-brand hover:text-brand transition-colors grid place-items-center"
+                                >
+                                    <ChevronRight className="size-4" />
                                 </button>
                             </div>
                         </div>
@@ -1019,23 +1348,41 @@ export const Dashboard = () => {
                         </div>
                     </div>
                 </main>
-
                 <footer className="fixed bottom-0 left-0 right-0 border-t border-zinc-900 bg-zinc-950/80 backdrop-blur-md z-30">
                     <div className="mx-auto max-w-7xl px-6 h-10 flex items-center justify-between text-[10px] font-mono text-zinc-600">
                         <div className="flex gap-6">
-                            <span>LATENCY: 42ms</span>
-                            <span>GAS PRICE: 1.2 GWEI</span>
-                            <span>EPOCH: 4812</span>
+                            <span>
+                                LATENCY:{" "}
+                                <span className="text-zinc-400">
+                                    {status?.last_market_data?.estimated_slippage != null
+                                        ? `${(status.last_market_data.estimated_slippage * 100).toFixed(2)}% slippage`
+                                        : "42ms"}
+                                </span>
+                            </span>
+                            <span>
+                                CSPR/USD:{" "}
+                                <span className="text-zinc-400">
+                                    ${status?.last_market_data?.cspr_price_usd?.toFixed(5) ?? "—"}
+                                </span>
+                            </span>
+                            <span>
+                                BALANCE:{" "}
+                                <span className="text-zinc-400">
+                                    {status?.balance_cspr != null ? `${status.balance_cspr.toLocaleString()} CSPR` : "—"}
+                                </span>
+                            </span>
                         </div>
                         <div className="flex gap-4">
-                            <span className="text-emerald-500/60">{t.connected}</span>
+                            <span className={status?.status === "running" ? "text-emerald-500/60" : "text-red-500/60"}>
+                                {status?.status?.toUpperCase() ?? t.connected}
+                            </span>
                             <span>v0.12.4-BETA</span>
                         </div>
                     </div>
                 </footer>
 
                 <PoolDetailSheet pool={selectedPool} onClose={() => setSelectedPool(null)} />
-            </div>
-        </LangContext.Provider>
+            </div >
+        </LangContext.Provider >
     );
 }
