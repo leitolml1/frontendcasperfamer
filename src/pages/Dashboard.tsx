@@ -16,7 +16,7 @@ import {
     ArrowRightLeft, ChevronLeft,
     Send,
 } from "lucide-react";
-
+import { useCasperTransaction } from "#hooks/useCasperTransaction";
 const EXPLORER = "https://testnet.cspr.live/deploy/";
 
 // ---------- i18n ----------
@@ -632,6 +632,8 @@ function DecisionRow({ d }: { d: Decision }) {
 // ---------- main ----------
 
 export const Dashboard = () => {
+    const { sendNativeTransfer } = useCasperTransaction();
+    const [actionAmount, setActionAmount] = useState<string>("50"); // valor por defecto
     const { status, loading } = useAgentStatus();
 
     console.log(status);
@@ -670,7 +672,47 @@ export const Dashboard = () => {
     const [nextCycle, setNextCycle] = useState(42);
     const [lang, setLang] = useState<Lang>("en");
     const t = dict[lang];
+    const executeAction = async (actionType: string) => {
+        if (!walletConnected || !walletAddress) {
+            alert("Conecta tu wallet primero");
+            return;
+        }
 
+        const amount = parseFloat(actionAmount);
+        if (!amount || amount <= 0) {
+            alert("Ingresa un monto válido mayor a 0");
+            return;
+        }
+
+        const amountMotes = Math.floor(amount * 1_000_000_000).toString();
+
+        try {
+            const providerFactory = (window as any).CasperWalletProvider;
+            const walletProvider = typeof providerFactory === "function"
+                ? providerFactory(window)
+                : providerFactory;
+
+            if (!walletProvider) {
+                throw new Error("Casper Wallet no detectada");
+            }
+
+            const deployHash = await sendNativeTransfer(
+                walletAddress,
+                walletAddress,        // ← Transfer a ti mismo (seguro para pruebas)
+                amountMotes,
+                walletProvider
+            );
+
+            alert(`✅ Transacción enviada exitosamente!\n\nHash:\n${deployHash}`);
+
+            // Abrir explorer
+            window.open(`${EXPLORER}${deployHash}`, "_blank");
+
+        } catch (error: any) {
+            console.error("Transaction error:", error);
+            alert("❌ Error al enviar transacción:\n" + (error.message || error));
+        }
+    };
     useEffect(() => {
         const id = setInterval(() => {
             setNextCycle((s) => (s <= 1 ? 60 : s - 1));
@@ -885,7 +927,6 @@ export const Dashboard = () => {
                                     style={{ transform: `translateX(-${slide * 100}%)` }}
                                 >
                                     {/* SLIDE 0 — Agent Status */}
-                                    {/* SLIDE 0 — Agent Status */}
                                     <div className="min-w-full p-6 rounded-xl bg-red-500/5 border border-red-500/40 shadow-[0_0_20px_rgba(255,45,45,0.25)]">
 
                                         {/* Agent active pill */}
@@ -1072,29 +1113,52 @@ export const Dashboard = () => {
                                             ))}
                                         </div>
 
-                                        {/* Input */}
-                                        <input
-                                            type="number"
-                                            placeholder="Amount (CSPR)"
-                                            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-zinc-100 focus:border-indigo-500 outline-none mb-2 text-sm font-mono"
-                                        />
+                                        <div className="space-y-4">
+                                            {/* Amount Input */}
+                                            <div>
+                                                <div className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Amount (CSPR)</div>
+                                                <input
+                                                    type="number"
+                                                    value={actionAmount}
+                                                    onChange={(e) => setActionAmount(e.target.value)}
+                                                    className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-zinc-100 focus:border-indigo-500 outline-none text-lg font-mono"
+                                                    placeholder="50.0"
+                                                />
+                                            </div>
 
-                                        {/* Pills */}
-                                        <div className="flex gap-1.5 mb-3 flex-wrap">
-                                            {["Deposit", "Withdraw", "Stake", "Unstake", "Swap"].map((action) => (
-                                                <button
-                                                    key={action}
-                                                    className="flex-1 min-w-[60px] py-1.5 rounded-md border border-zinc-700 bg-zinc-900 text-zinc-400 text-[10px] uppercase tracking-widest hover:border-indigo-500 hover:text-indigo-400 hover:bg-indigo-500/10 transition-all font-mono"
-                                                >
-                                                    {action}
-                                                </button>
-                                            ))}
+                                            {/* Action Buttons */}
+                                            <div className="grid grid-cols-2 gap-3">
+                                                {[
+                                                    { label: "Deposit", action: "deposit", color: "indigo" },
+                                                    { label: "Withdraw", action: "withdraw", color: "zinc" },
+                                                    { label: "Stake", action: "stake", color: "emerald" },
+                                                    { label: "Swap", action: "swap", color: "brand" },
+                                                ].map(({ label, action, color }) => (
+                                                    <button
+                                                        key={action}
+                                                        onClick={() => executeAction(action)}
+                                                        className={`py-3 px-4 rounded-xl border text-sm font-semibold transition-all hover:scale-[1.02] ${color === "indigo"
+                                                            ? "border-indigo-500 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20"
+                                                            : color === "emerald"
+                                                                ? "border-emerald-500 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                                                                : color === "brand"
+                                                                    ? "border-brand bg-brand/10 text-brand hover:bg-brand/20"
+                                                                    : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:bg-zinc-800"
+                                                            }`}
+                                                    >
+                                                        {label}
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            <button
+                                                onClick={() => executeAction("execute")}
+                                                className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl border border-indigo-500/50 bg-indigo-500/10 text-indigo-400 font-semibold text-base hover:bg-indigo-500/20 transition-all"
+                                            >
+                                                <Send size={18} />
+                                                Execute Transaction
+                                            </button>
                                         </div>
-
-                                        <button className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-indigo-500/50 bg-indigo-500/10 text-indigo-400 font-semibold text-sm hover:bg-indigo-500/20 transition-all">
-                                            <Send size={14} />
-                                            Execute action
-                                        </button>
                                     </div>
                                 </div>
                             </div>
